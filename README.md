@@ -1,1 +1,1 @@
-# sonar-with-jenkins
+# SonarQube install and configure with Jenkins
