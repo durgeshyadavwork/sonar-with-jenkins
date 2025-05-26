@@ -351,10 +351,6 @@ pipeline {
 
         GIT_BRANCH = 'test/sonar'
 
-        // Branches for multi-branch setup
-        // TEST_BRANCH = 'git-jenkins-test'
-        // PROD_BRANCH = 'git-jenkins-prod'
-
         // Hosts for each environment
         TEST_HOST = 'ec2-user@13.233.142.196'
         PROD_HOST = 'ec2-user@3.109.155.16'
