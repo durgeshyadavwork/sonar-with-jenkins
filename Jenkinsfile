@@ -356,8 +356,8 @@ pipeline {
         // PROD_BRANCH = 'git-jenkins-prod'
 
         // Hosts for each environment
-        TEST_HOST = 'ec2-user@43.205.95.245'
-        PROD_HOST = 'ec2-user@43.204.145.1'
+        TEST_HOST = 'ec2-user@13.233.142.196'
+        PROD_HOST = 'ec2-user@3.109.155.16'
 
         // Credentials
         EC2_KEY = credentials('ec2-ssh-key')
