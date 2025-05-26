@@ -240,7 +240,7 @@ pipeline {
 */
 
 
-
+/*
 
 
 pipeline {
@@ -327,6 +327,111 @@ pipeline {
         }
 
         stage('Cleanup') {
+            steps {
+                sh "docker rmi $DOCKER_IMAGE:${IMAGE_TAG} || true"
+            }
+        }
+    }
+}
+
+
+*/
+
+
+
+pipeline {
+    agent any
+
+    parameters {
+        choice(name: 'ENVIRONMENT', choices: ['test', 'prod'], description: 'Choose the deployment environment')
+    }
+
+    environment {
+        DOCKER_IMAGE = 'dugreshyadav/sonar-with-jenkins'
+
+        GIT_BRANCH = 'test/sonar'
+
+        // Branches for multi-branch setup
+        // TEST_BRANCH = 'git-jenkins-test'
+        // PROD_BRANCH = 'git-jenkins-prod'
+
+        // Hosts for each environment
+        TEST_HOST = 'ec2-user@43.205.95.245'
+        PROD_HOST = 'ec2-user@43.204.145.1'
+
+        // Credentials
+        EC2_KEY = credentials('ec2-ssh-key')
+        SONAR_SCANNER = tool 'SonarScanner'
+    }
+
+    stages {
+        stage('Set Config Based on Environment') {
+            steps {
+                script {
+                    env.TARGET_HOST = (params.ENVIRONMENT == 'test') ? TEST_HOST : PROD_HOST
+                    env.IMAGE_TAG = "${params.ENVIRONMENT}-${BUILD_NUMBER}"
+                }
+            }
+        }
+
+        stage('Clone Repository') {
+            steps {
+                git branch: "${GIT_BRANCH}",
+                    url: 'https://github.com/durgeshyadavwork/sonar-with-jenkins.git'
+            }
+        }
+
+        stage('SonarQube Code Analysis') {
+            steps {
+                withSonarQubeEnv('ExternalSonarQube') {
+                    sh "${SONAR_SCANNER}/bin/sonar-scanner"
+                }
+            }
+        }
+
+        stage('Wait for Quality Gate') {
+            steps {
+                timeout(time: 1, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    sh "docker build -t $DOCKER_IMAGE:${IMAGE_TAG} ."
+                }
+            }
+        }
+
+        stage('Push Docker Image to Docker Hub') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', usernameVariable: 'DOCKERHUB_USER', passwordVariable: 'DOCKERHUB_PASS')]) {
+                    sh """
+                        echo "$DOCKERHUB_PASS" | docker login -u "$DOCKERHUB_USER" --password-stdin
+                        docker push $DOCKER_IMAGE:${IMAGE_TAG}
+                    """
+                }
+            }
+        }
+
+        stage('Deploy to EC2 Instance') {
+            steps {
+                sshagent (credentials: ['ec2-ssh-key']) {
+                    sh """
+                    ssh -o StrictHostKeyChecking=no $TARGET_HOST '
+                        docker pull $DOCKER_IMAGE:${IMAGE_TAG} &&
+                        docker stop app || true &&
+                        docker rm app || true &&
+                        docker run -d --name app -p 3000:3000 $DOCKER_IMAGE:${IMAGE_TAG}
+                    '
+                    """
+                }
+            }
+        }
+
+        stage('Cleanup Local Docker Image') {
             steps {
                 sh "docker rmi $DOCKER_IMAGE:${IMAGE_TAG} || true"
             }
